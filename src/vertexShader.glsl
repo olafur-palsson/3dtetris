@@ -50,7 +50,7 @@ void main() {
 
   lightDistance = length(lightPos - adjustedPosition.xyz + translation);
   light = normalize(lightPos - adjustedPosition.xyz);
-  attenuation = 1.0 / pow(lightDistance / 4.0, 2.0) * 4.0 * 3.14;
+  attenuation = 1.0 / pow(lightDistance / 80.0, 2.0) * 4.0 * 3.14;
 
   specularIntensity = clamp(dot(view, normalize(reflect(light, adjustedNormals.xyz))), 0.0, 1.0);
   specularIntensity = pow(specularIntensity, 64.0);

@@ -19049,42 +19049,15 @@ var state = {
   nextSpeed: 0,
   lastTime: performance.now(),
   staticMWorld: false,
-  slowFactor: 1
+  slowFactor: 1,
+  currentAngle: 0,
+  destiny: 0,
+  oldDestiny: 0
 };
 var wait = false;
 setInterval(function () {
   wait = false;
 }, 20);
-
-var updateRotationInfo = function updateRotationInfo(e) {
-  var x0 = state.x0,
-      y0 = state.y0,
-      x = state.x,
-      y = state.y;
-  var axis = [(y - y0) / (0.001 + (x - x0)), 0, 1];
-
-  if (x < x0) {
-    axis[2] *= -1;
-    axis[0] *= -1;
-  }
-
-  state.axis = axis;
-  var length2 = Math.pow(y - y0, 2) + Math.pow(x - x0, 2);
-  var currentTime = performance.now();
-  var timeDifference = currentTime - state.lastTime;
-  state.nextSpeed = Math.sqrt(length2) / timeDifference / 5;
-  state.lastTime = currentTime;
-}; // TODO
-
-
-var solarSystem = {
-  sun_pos: [0, 0, 0],
-  sun_scale: 2,
-  moon_pos: [3.5, 0, 0],
-  moon_scale: 0.05,
-  earth_pos: [3, 0, 0],
-  earth_scale: 0.1
-};
 
 var addDragRotation = function addDragRotation(mWorld, inverse) {
   var oldMWorld = new Float32Array(16);
@@ -19093,14 +19066,13 @@ var addDragRotation = function addDragRotation(mWorld, inverse) {
 
   canvas.onmousedown = function (e) {
     state.staticMWorld = true;
-    glMatrix.mat4.mul(oldMWorld, identityMatrix, mWorld);
+    state.currentAngle = state.oldDestiny;
+    glMatrix.mat4.mul(oldMWorld, identityMatrix, identityMatrix);
+    state.x = e.offsetX;
+    state.x0 = e.offsetX;
 
     canvas.onmousemove = function (e) {
-      state.x0 = state.x;
-      state.y0 = state.y;
       state.x = e.offsetX;
-      state.y = e.offsetY;
-      if (!wait) updateRotationInfo(e);
     };
   };
 
@@ -19109,16 +19081,21 @@ var addDragRotation = function addDragRotation(mWorld, inverse) {
     state.slowFactor = 1;
     state.radPerSec = state.nextSpeed;
     state.staticMWorld = false;
+    state.oldDestiny = state.destiny;
   };
 
   var rotate = function rotate(timePassed) {
     var angle = timePassed / 20 * Math.PI;
 
     if (state.staticMWorld) {
-      var length2 = Math.pow(state.x - state.x0, 2) + Math.pow(state.y - state.y0, 2);
-      var offset = Math.sqrt(length2) / 300;
-      glMatrix.mat4.rotate(rotationMatrix, identityMatrix, offset, state.axis);
-      glMatrix.mat4.mul(mWorld, rotationMatrix, mWorld);
+      state.destiny = state.oldDestiny + parseInt((state.x - state.x0) / 160);
+      console.log(state.destiny);
+      var offsetFromIdeal = state.destiny - state.currentAngle;
+      var shift = timePassed * Math.sign(offsetFromIdeal) / 100;
+      shift = Math.abs(offsetFromIdeal) < Math.abs(shift) ? offsetFromIdeal : shift;
+      state.currentAngle += shift;
+      glMatrix.mat4.rotate(rotationMatrix, identityMatrix, state.currentAngle * 0.5 * Math.PI, [0, 1, 0]);
+      glMatrix.mat4.mul(mWorld, rotationMatrix, oldMWorld);
     } else {
       state.slowFactor = Math.min(state.slowFactor / 1.002, state.slowFactor - 0.001 < 0 ? 0 : state.slowFactor - 0.001);
       var angularSpeed = angle / 17 * state.radPerSec * state.slowFactor;
@@ -19126,6 +19103,8 @@ var addDragRotation = function addDragRotation(mWorld, inverse) {
       glMatrix.mat4.mul(mWorld, rotationMatrix, mWorld);
       glMatrix.mat4.invert(inverse, mWorld);
     }
+
+    return state.destiny;
   };
 
   return rotate;
@@ -19460,6 +19439,8 @@ var vectorAdd = function vectorAdd(v1, v2) {
 
 var canvas, gl, program;
 var N_BYTES = Float32Array.BYTES_PER_ELEMENT;
+var oli_is_sorry = false;
+var maximum_disrespect = true;
 
 var start =
 /*#__PURE__*/
@@ -19467,14 +19448,14 @@ function () {
   var _ref = _asyncToGenerator(
   /*#__PURE__*/
   regeneratorRuntime.mark(function _callee() {
-    var program, attribs, mWorld, mWorldInverse, mView, mProjection, positionOfViewer, pointViewerIsLookingAt, vectorPointingUp, u_samplerUniformLocation, rotate_wrt_time, lightPos, viewDirection, identity, orientation, sun, block, sunObj, tetris, i, lastTime, render;
+    var program, attribs, mWorld, mWorldInverse, mView, mProjection, positionOfViewer, pointViewerIsLookingAt, vectorPointingUp, u_samplerUniformLocation, rotate_wrt_time, lightPos, viewDirection, identity, orientation, sun, block, sunObj, dblquote, q, currentAngle, initialTime, sunPosition, updateSunpos, text, setText, button, stupidSettings, dvorak, height, dim, useDvorak, tetris, oli_is_sorry, maximum_disrespect, newGame, useStupidSettings, highscore, i, lastTime, render;
     return regeneratorRuntime.wrap(function _callee$(_context) {
       while (1) {
         switch (_context.prev = _context.next) {
           case 0:
             canvas = document.getElementById('canvas');
             gl = canvas.getContext('webgl', {
-              preserveDrawingBuffer: true
+              preserveDrawingBuffer: false
             });
             _context.next = 4;
             return Object(_easyWebGL__WEBPACK_IMPORTED_MODULE_0__["createWebGLProgram"])(gl, 'src/vertexShader.glsl', 'src/fragmentShader.glsl');
@@ -19493,18 +19474,26 @@ function () {
             mView = new Float32Array(16);
             mProjection = new Float32Array(16); // Setup the camera matrix
 
-            positionOfViewer = [0, 40, 15];
+            positionOfViewer = [0, 20, 15];
             pointViewerIsLookingAt = [0, 0, 0];
             vectorPointingUp = [0, 5, 0]; // Set up the world
 
             glMatrix.mat4.identity(mWorld);
             glMatrix.mat4.lookAt(mView, positionOfViewer, pointViewerIsLookingAt, vectorPointingUp);
-            glMatrix.mat4.perspective(mProjection, Math.PI * 0.25, canvas.width / canvas.height, 0.1, 1000.0);
+            glMatrix.mat4.perspective(mProjection, Math.PI * 0.25, 0.00001 + canvas.clientWidth / canvas.clientHeight, 0.1, 1000.0);
             program.setUniforms({
               mView: mView,
               mWorld: mWorld,
               mProjection: mProjection
-            }); // Set up GLObject 
+            });
+
+            window.onresize = function () {
+              glMatrix.mat4.perspective(mProjection, Math.PI * 0.25, 0.00001 + canvas.clientWidth / canvas.clientHeight, 0.1, 1000.0);
+              program.setUniforms({
+                mProjection: mProjection
+              });
+            }; // Set up GLObject 
+
 
             u_samplerUniformLocation = gl.getUniformLocation(program.program, 'u_sampler');
             _GLObject__WEBPACK_IMPORTED_MODULE_2__["default"].setProgramLocations(attribs.vertexPosition, attribs.a_textcoord, u_samplerUniformLocation, attribs.vertexNormals); // Enable click and draw rotation
@@ -19532,15 +19521,15 @@ function () {
             identity = glMatrix.mat4.identity(new Float32Array(9));
             orientation = new Float32Array(16); // Create the objects we will draw
 
-            _context.next = 42;
+            _context.next = 43;
             return _GLObject__WEBPACK_IMPORTED_MODULE_2__["default"].create(gl, 'sphere.obj', 'sun.png');
 
-          case 42:
+          case 43:
             sun = _context.sent;
-            _context.next = 45;
+            _context.next = 46;
             return _GLObject__WEBPACK_IMPORTED_MODULE_2__["default"].create(gl, 'block.obj', 'moon.png');
 
-          case 45:
+          case 46:
             block = _context.sent;
             // Create the data to render the sun
             sunObj = {
@@ -19551,11 +19540,78 @@ function () {
               swimSeed: 0,
               swimStatus: 0
             };
+            dblquote = 222;
+            q = 81;
+            currentAngle = 0;
+            initialTime = performance.now();
+            sunPosition = new Float32Array([10, 10, 0]);
+
+            updateSunpos = function updateSunpos() {
+              var totalTime = performance.now() - initialTime;
+              totalTime /= 500;
+              var x = 300 * Math.cos(totalTime / 5);
+              var y = 150 * Math.sin(totalTime / 7) + 150;
+              var z = 300 * Math.cos(totalTime / 6); // add this to cause a solar flare every now and then
+
+              var d = 1 - Math.pow(Math.abs(Math.sin(totalTime / 30)), 10);
+              sunPosition = new Float32Array([x * d, y * d, z * d]);
+              glMatrix.vec3.scale(lightPos, sunPosition, -1);
+            };
+
+            text = document.getElementById('text');
+
+            setText = function setText(txt) {
+              text.innerHTML = txt;
+            };
+
+            button = document.getElementById('reset');
+            stupidSettings = document.getElementById('stupid');
+            dvorak = document.getElementById('dvorak');
+            height = 15;
+            dim = 4;
+            useDvorak = false;
+            tetris = new _tetris_js__WEBPACK_IMPORTED_MODULE_4__["Tetris"]();
+
+            dvorak.onclick = function (e) {
+              useDvorak = e.target.checked;
+              tetris.bindKeys(0, useDvorak);
+            };
+
             _tetris_js__WEBPACK_IMPORTED_MODULE_4__["TetrisBlock"].program = program;
             _tetris_js__WEBPACK_IMPORTED_MODULE_4__["TetrisBlock"].GLObject = block;
-            tetris = new _tetris_js__WEBPACK_IMPORTED_MODULE_4__["Tetris"]();
             tetris.startGame();
-            tetris.bindKeys(); // TODO:
+            tetris.bindKeys();
+            oli_is_sorry = false;
+            maximum_disrespect = true;
+
+            newGame = function newGame() {
+              tetris.endGame();
+              tetris.setDim(height, dim);
+              setTimeout(function () {
+                tetris.reset();
+                tetris.startGame();
+                tetris.bindKeys(0, useDvorak);
+              }, 5000);
+            };
+
+            useStupidSettings = false; // Sets whether we are going to use fun settings or not
+
+            stupidSettings.onclick = function (e) {
+              useStupidSettings = !e.target.checked;
+              height = useStupidSettings ? 19 : 15;
+              dim = useStupidSettings ? 4 : 6;
+              newGame();
+            };
+
+            button.onclick = function () {
+              newGame();
+            };
+
+            highscore = 8;
+            setInterval(function () {
+              if (tetris.points > highscore) highscore = tetris.points;
+              setText("Current level and points: ".concat(tetris.points, " \n    Highscore: ").concat(highscore));
+            }, 50); // TODO:
             //  Add simple rotation with only 
             //  Add keybindings
 
@@ -19567,29 +19623,34 @@ function () {
               // Get the time between frames
               var currentTime = performance.now();
               var timePassed = currentTime - lastTime;
-              lastTime = currentTime; // Calculate a one game tick
+              lastTime = currentTime;
+              if (tetris.points > 8) sorry = true; // Calculate a one game tick
 
-              rotate_wrt_time(timePassed);
+              var newAngle = rotate_wrt_time(timePassed);
+              if (newAngle != currentAngle) tetris.bindKeys(newAngle, useDvorak);
+              currentAngle = newAngle;
               program.setUniforms({
                 mView: mView,
                 mWorld: mWorld,
                 mWorldInverse: mWorldInverse,
-                ambientScalar: 0.1,
+                ambientScalar: 0.15,
                 scalar: 0.5
               }); // Clear and draw objects
 
               gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
               tetris.render(); // Calculate variables for the sun
 
+              updateSunpos();
               glMatrix.mat4.targetTo(orientation, lightPos, vectorAdd(lightPos, [1, 0, 0]), vectorPointingUp);
-              var translation = new Float32Array([10, 0, 10]);
+              var translation = sunPosition;
               var color = new Float32Array([1, 1, 1]);
               program.setUniforms({
                 orientation: orientation,
                 translation: translation,
                 scalar: 3,
                 ambientScalar: 1.5,
-                color: color
+                color: color,
+                lightPos: lightPos
               });
               sun.draw();
               requestAnimationFrame(render);
@@ -19597,7 +19658,7 @@ function () {
 
             requestAnimationFrame(render);
 
-          case 56:
+          case 80:
           case "end":
             return _context.stop();
         }
@@ -19625,6 +19686,10 @@ start();
 __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "Tetris", function() { return Tetris; });
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "TetrisBlock", function() { return TetrisBlock; });
+function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { Promise.resolve(value).then(_next, _throw); } }
+
+function _asyncToGenerator(fn) { return function () { var self = this, args = arguments; return new Promise(function (resolve, reject) { var gen = fn.apply(self, args); function _next(value) { asyncGeneratorStep(gen, resolve, reject, _next, _throw, "next", value); } function _throw(err) { asyncGeneratorStep(gen, resolve, reject, _next, _throw, "throw", err); } _next(undefined); }); }; }
+
 function _slicedToArray(arr, i) { return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _nonIterableRest(); }
 
 function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
@@ -19639,7 +19704,18 @@ function _defineProperties(target, props) { for (var i = 0; i < props.length; i+
 
 function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
 
-// Creates a single square block
+var glMatrix = __webpack_require__(/*! gl-matrix */ "./node_modules/gl-matrix/esm/index.js");
+
+var vectorAdd = function vectorAdd(v1, v2) {
+  var scalar = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 1;
+  var returnArray = [];
+  v1.forEach(function (_, i) {
+    returnArray.push(v1[i] + v2[i] * scalar);
+  });
+  return returnArray;
+}; // Creates a single square block
+
+
 var TetrisBlock =
 /*#__PURE__*/
 function () {
@@ -19695,36 +19771,53 @@ var s = 83;
 var u = 85;
 var w = 87;
 var r = 82;
-var y = 89; // TODO:
-//  Out of bounds function
-//  Move left
-//  Move right
-//  Move front
-//  Move back
-//  Layer is full
-//  Points
-//  Restart
-//  Speed up
+var y = 89;
+var d = 68; // TODO:
+//  *Out of bounds function
+//  *Move left
+//  *Move right
+//  *Move front
+//  *Move back
+//  *Layer is full
+//  *Points
+//  *Restart
+//  *Speed up
+//  *Rotate
+
+var dimensions = 4;
+var height = 15;
 
 var Tetris =
 /*#__PURE__*/
 function () {
+  _createClass(Tetris, [{
+    key: "init",
+    value: function init() {
+      // Initialize the game array with false
+      // this array will be populated with GLObjects to render
+      // layer = y, row = z, col = x as per normal webgl coordinates
+      this.blocks = new Array(height + 2).fill(false).map(function (layer) {
+        return new Array(dimensions).fill(false).map(function (row) {
+          return new Array(dimensions).fill(false);
+        });
+      });
+      this.render = this.render.bind(this);
+      this.endGame = this.endGame.bind(this);
+      this.startGame = this.startGame.bind(this);
+      this.bindKeys = this.bindKeys.bind(this);
+      this.identity = new Float32Array(16);
+      this.rotationMatrix = new Float32Array(16);
+      glMatrix.mat4.identity(this.identity);
+      this.points = 0;
+      this.gameEnded = false;
+      this.reset = this.reset.bind(this);
+    }
+  }]);
+
   function Tetris() {
     _classCallCheck(this, Tetris);
 
-    // Initialize the game array with false
-    // this array will be populated with GLObjects to render
-    // layer = y, row = z, col = x as per normal webgl coordinates
-    this.blocks = new Array(20).fill(false).map(function (layer) {
-      return new Array(6).fill(false).map(function (row) {
-        return new Array(6).fill(false);
-      });
-    });
-    this.render = this.render.bind(this);
-    this.endGame = this.endGame.bind(this);
-    this.startGame = this.startGame.bind(this);
-    this.clockTick = null;
-    this.bindKeys = this.bindKeys.bind(this);
+    this.init();
   }
 
   _createClass(Tetris, [{
@@ -19732,33 +19825,139 @@ function () {
     value: function bindKeys() {
       var _this = this;
 
-      document.onkeydown = function (kbdEvent) {
+      var currentAngle = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 0;
+      var useDvorak = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+      var moveActions = [function () {
+        return _this.moveRow(-1);
+      }, function () {
+        return _this.moveCol(1);
+      }, function () {
+        return _this.moveRow(1);
+      }, function () {
+        return _this.moveCol(-1);
+      }];
+      var rotateActions = [function () {
+        return _this.rotateX(-0.5);
+      }, function () {
+        return _this.rotateZ(-0.5);
+      }, function () {
+        return _this.rotateX(+0.5);
+      }, function () {
+        return _this.rotateZ(+0.5);
+      }];
+      currentAngle = currentAngle + 1600;
+      if (useDvorak) document.onkeydown = function (kbdEvent) {
+        var preventDefault = true;
+
         switch (kbdEvent.which) {
           case uparrow:
-            _this.moveRow(-1);
-
+            moveActions[(currentAngle + 0) % 4]();
             break;
 
           case dnarrow:
-            _this.moveRow(1);
-
+            moveActions[(currentAngle + 2) % 4]();
             break;
 
           case rgarrow:
-            _this.moveCol(1);
-
+            moveActions[(currentAngle + 1) % 4]();
             break;
 
           case lfarrow:
-            _this.moveCol(-1);
-
+            moveActions[(currentAngle + 3) % 4]();
             break;
 
           case space:
-            _this.moveAllTheWayDown();
+            _this.drop();
 
             break;
+
+          case comma:
+            rotateActions[(currentAngle + 0) % 4]();
+            break;
+
+          case o:
+            rotateActions[(currentAngle + 2) % 4]();
+            break;
+
+          case semic:
+            _this.rotateY(+0.5);
+
+            break;
+
+          case dot:
+            _this.rotateY(-0.5);
+
+            break;
+
+          case a:
+            rotateActions[(currentAngle + 3) % 4]();
+            break;
+
+          case e:
+            rotateActions[(currentAngle + 1) % 4]();
+            break;
+
+          default:
+            preventDefault = false;
         }
+
+        if (preventDefault) kbdEvent.preventDefault();
+      };else document.onkeydown = function (kbdEvent) {
+        var preventDefault = true;
+
+        switch (kbdEvent.which) {
+          case uparrow:
+            moveActions[(currentAngle + 0) % 4]();
+            break;
+
+          case dnarrow:
+            moveActions[(currentAngle + 2) % 4]();
+            break;
+
+          case rgarrow:
+            moveActions[(currentAngle + 1) % 4]();
+            break;
+
+          case lfarrow:
+            moveActions[(currentAngle + 3) % 4]();
+            break;
+
+          case space:
+            _this.drop();
+
+            break;
+
+          case w:
+            rotateActions[(currentAngle + 0) % 4]();
+            break;
+
+          case s:
+            rotateActions[(currentAngle + 2) % 4]();
+            break;
+
+          case q:
+            _this.rotateY(+0.5);
+
+            break;
+
+          case e:
+            _this.rotateY(-0.5);
+
+            break;
+
+          case a:
+            rotateActions[(currentAngle + 3) % 4]();
+            break;
+
+          case d:
+            rotateActions[(currentAngle + 1) % 4]();
+            break;
+
+          default:
+            preventDefault = false;
+        }
+
+        if (preventDefault) kbdEvent.preventDefault();
       };
     }
   }, {
@@ -19773,67 +19972,325 @@ function () {
       });
     }
   }, {
-    key: "reset",
-    value: function reset() {
-      this.blocks.forEach(function (layer) {
-        layer.forEach(function (row, i) {
-          row[i] = false;
-        });
-      });
-    }
-  }, {
-    key: "startGame",
-    value: function startGame() {
-      var _this2 = this;
-
-      this.createBlock();
-      this.clockTick = setInterval(function () {
-        _this2.moveDown();
-      }, 200);
+    key: "setDim",
+    value: function setDim(h, dim0) {
+      dimensions = dim0;
+      height = h;
     }
   }, {
     key: "endGame",
     value: function endGame() {
-      var _this3 = this;
+      var _this2 = this;
 
       console.log('You suck  lost bruuuuuuuh!');
+      console.log(this.gameEnded);
+      this.gameEnded = true;
+      this.currentBlockPositions = null;
       var out = -5;
       window.clearInterval(this.clockTick);
       var interval = setInterval(function () {
-        if (out++ >= 0) {
-          window.clearInterval(interval);
-        }
+        if (out++ >= 0) window.clearInterval(interval);
 
-        _this3.forAll(function (block) {
-          block.shouldDraw = !block.shouldDraw;
-        });
+        _this2.blink(_this2.blocks);
       }, 500);
     }
   }, {
-    key: "createBlock",
-    value: function createBlock() {
-      var _this4 = this;
+    key: "canMove",
+    value: function canMove(desiredPositions) {
+      var _this3 = this;
 
-      if (this.blocks[19][3][3] || this.blocks[19][3][2]) {
-        window.clearInterval(this.clockTick);
-        this.endGame();
-      }
-
-      var rand = parseInt(Math.random() * 3) + 2;
-      var x = rand;
-      var isStraight = x == 3;
-      var z = isStraight ? 4 : 3;
-      var color = [Math.random(), Math.random(), Math.random()];
-      var blockPositions = [[3, 19, 3], [3, 19, 2], [x, 19, z]];
-      blockPositions.forEach(function (position) {
+      var currentBlocks = this.getCurrentBlocks();
+      var isPossible = true;
+      var outOfBounds = false;
+      desiredPositions.forEach(function (position) {
         var _position = _slicedToArray(position, 3),
             x = _position[0],
             y = _position[1],
             z = _position[2];
 
-        _this4.blocks[y][z][x] = new TetrisBlock(color);
+        if (x >= dimensions || x < 0 || y < 0 || z >= dimensions || z < 0) {
+          // console.log("BLOCKED -- OUT OF BOUNDS")
+          outOfBounds = true;
+        } else if (_this3.blocks[y][z][x]) {
+          var isBlocked = true;
+          var blockingBlock = _this3.blocks[y][z][x];
+          currentBlocks.forEach(function (block) {
+            if (block == blockingBlock) isBlocked = false;
+          });
+          isPossible = isPossible && !isBlocked;
+        }
+      }); // console.log(desiredPositions[0], desiredPositions[1], desiredPositions[2], isPossible, !outOfBounds)
+
+      return isPossible && !outOfBounds;
+    }
+  }, {
+    key: "currentPosPlusVector",
+    value: function currentPosPlusVector(vector) {
+      return this.currentBlockPositions.map(function (position) {
+        return vectorAdd(position, vector);
       });
+    }
+  }, {
+    key: "tryMove",
+    value: function tryMove(nextPosition) {
+      var _this4 = this;
+
+      if (!this.canMove(nextPosition)) return false;
+      var blocksToMove = this.getCurrentBlocks(true);
+      nextPosition.forEach(function (position, i) {
+        var _position2 = _slicedToArray(position, 3),
+            x = _position2[0],
+            y = _position2[1],
+            z = _position2[2];
+
+        _this4.blocks[y][z][x] = blocksToMove[i];
+      });
+      this.currentBlockPositions = nextPosition;
+      return true;
+    }
+  }, {
+    key: "moveCol",
+    value: function moveCol(n) {
+      var vec = [n, 0, 0];
+      this.tryMove(this.currentPosPlusVector(vec));
+    }
+  }, {
+    key: "moveRow",
+    value: function moveRow(n) {
+      var vec = [0, 0, n];
+      this.tryMove(this.currentPosPlusVector(vec));
+    }
+  }, {
+    key: "drop",
+    value: function drop() {
+      var vec = [0, -1, 0];
+
+      while (this.tryMove(this.currentPosPlusVector(vec))) {
+        ;
+      }
+
+      this.blockFinished();
+    }
+  }, {
+    key: "integerRotation",
+    value: function integerRotation(rotationMatrix) {
+      var positions = this.currentBlockPositions.map(function (pos) {
+        var position = pos.slice();
+        position.push(0);
+        return position;
+      });
+      var center = positions[0];
+      var translated = [];
+      positions.forEach(function (pos) {
+        return translated.push(new Float32Array(vectorAdd(pos, center, -1)));
+      });
+      translated.forEach(function (pos) {
+        return glMatrix.mat4.mul(pos, rotationMatrix, pos);
+      });
+      var unTranslated = translated.map(function (pos) {
+        return vectorAdd(pos, center);
+      });
+      var integerArray = unTranslated.map(function (pos) {
+        return pos.map(function (fl) {
+          return parseInt(Math.round(fl));
+        }).slice(0, 3);
+      });
+      return integerArray;
+    }
+  }, {
+    key: "rotateX",
+    value: function rotateX(piRads) {
+      glMatrix.mat4.rotateX(this.rotationMatrix, this.identity, Math.PI * piRads);
+      var nextPosition = this.integerRotation(this.rotationMatrix);
+      this.tryMove(nextPosition);
+    }
+  }, {
+    key: "rotateY",
+    value: function rotateY(piRads) {
+      glMatrix.mat4.rotateY(this.rotationMatrix, this.identity, Math.PI * piRads);
+      var nextPosition = this.integerRotation(this.rotationMatrix);
+      this.tryMove(nextPosition);
+    }
+  }, {
+    key: "rotateZ",
+    value: function rotateZ(piRads) {
+      glMatrix.mat4.rotateZ(this.rotationMatrix, this.identity, Math.PI * piRads);
+      var nextPosition = this.integerRotation(this.rotationMatrix);
+      this.tryMove(nextPosition);
+    }
+  }, {
+    key: "pushLayer",
+    value: function pushLayer() {
+      this.blocks.push(new Array(dimensions).fill(false).map(function (el) {
+        return new Array(dimensions).fill(false);
+      }));
+    }
+  }, {
+    key: "getLayersThatAreFull",
+    value: function getLayersThatAreFull() {
+      var fullLayers = [];
+      this.blocks.forEach(function (layer, i) {
+        var isFull = layer.reduce(function (bool, row) {
+          return bool && row.reduce(function (a, b) {
+            return a && b;
+          }, true);
+        }, true);
+        if (isFull) fullLayers.push(layer);
+      });
+      return fullLayers;
+    }
+  }, {
+    key: "blink",
+    value: function blink(layers) {
+      layers.forEach(function (layer) {
+        layer.forEach(function (row) {
+          row.forEach(function (block) {
+            if (block) block.shouldDraw = !block.shouldDraw;
+          });
+        });
+      });
+    }
+  }, {
+    key: "checkIfLayerIsFull",
+    value: function checkIfLayerIsFull() {
+      var _this5 = this;
+
+      return new Promise(function (resolve) {
+        if (_this5.gameEnded) return resolve(null);
+        var blinks = 4;
+
+        var fullLayers = _this5.getLayersThatAreFull();
+
+        if (fullLayers.length == 0) return resolve(null);
+
+        var fn = function fn() {
+          if (blinks-- < 0) {
+            while (fullLayers.length) {
+              var layer = fullLayers.pop();
+
+              for (var i = 0; i < _this5.blocks.length; i++) {
+                if (layer == _this5.blocks[i]) {
+                  _this5.blocks.splice(i, 1);
+
+                  _this5.pushLayer();
+                }
+              }
+
+              _this5.points++;
+            }
+
+            resolve(null);
+          } else _this5.blink(fullLayers);
+        };
+
+        var interval = setInterval(fn, 200);
+      });
+    }
+  }, {
+    key: "moveDown",
+    value: function moveDown() {
+      if (this.gameEnded) return;
+      var vec = [0, -1, 0];
+
+      if (!this.tryMove(this.currentPosPlusVector(vec))) {
+        this.blockFinished();
+        return false;
+      }
+
+      return true;
+    }
+  }, {
+    key: "reset",
+    value: function reset() {
+      this.init();
+    }
+  }, {
+    key: "pause",
+    value: function pause() {
+      console.log(this.clockTick);
+      window.clearInterval(this.clockTick);
+    }
+  }, {
+    key: "resume",
+    value: function resume() {
+      var _this6 = this;
+
+      if (this.gameEnded) return;
+      var interval = setInterval(function () {
+        _this6.moveDown();
+      }, 5000 / (10 + Math.pow(this.points, 1.2)));
+      this.clockTick = interval;
+    }
+  }, {
+    key: "startGame",
+    value: function startGame() {
+      this.createBlock();
+      this.resume();
+    }
+  }, {
+    key: "blockFinished",
+    value: function () {
+      var _blockFinished = _asyncToGenerator(
+      /*#__PURE__*/
+      regeneratorRuntime.mark(function _callee() {
+        return regeneratorRuntime.wrap(function _callee$(_context) {
+          while (1) {
+            switch (_context.prev = _context.next) {
+              case 0:
+                console.log('Block fininshed');
+                this.pause();
+                _context.next = 4;
+                return this.checkIfLayerIsFull();
+
+              case 4:
+                this.createBlock();
+                this.resume();
+
+              case 6:
+              case "end":
+                return _context.stop();
+            }
+          }
+        }, _callee, this);
+      }));
+
+      function blockFinished() {
+        return _blockFinished.apply(this, arguments);
+      }
+
+      return blockFinished;
+    }()
+  }, {
+    key: "createBlock",
+    value: function createBlock() {
+      var _this7 = this;
+
+      var n = parseInt(dimensions / 2);
+
+      if (this.blocks[height][n][n] || this.blocks[height][n][n - 1]) {
+        window.clearInterval(this.clockTick);
+        this.endGame();
+      }
+
+      var rand = parseInt(Math.random() * 3) + n - 1;
+      var x = rand;
+      var isStraight = x == n;
+      var z = isStraight ? n + 1 : n;
+      var color = [Math.random(), Math.random(), Math.random()];
+      var blockPositions = [[n, height, n], [n, height, n - 1], [x, height, z]];
       this.currentBlockPositions = blockPositions;
+
+      if (!this.canMove(blockPositions)) {
+        console.log("Game ended");
+        this.endGame();
+      } else blockPositions.forEach(function (position) {
+        var _position3 = _slicedToArray(position, 3),
+            x = _position3[0],
+            y = _position3[1],
+            z = _position3[2];
+
+        _this7.blocks[y][z][x] = new TetrisBlock(color);
+      });
     }
   }, {
     key: "render",
@@ -19841,157 +20298,27 @@ function () {
       this.blocks.forEach(function (layer, y) {
         layer.forEach(function (row, z) {
           row.forEach(function (block, x) {
-            if (block) block.draw(new Float32Array([x, y, z]));
+            if (block) block.draw(new Float32Array([x - dimensions / 2, y - height / 2, z - dimensions / 2]));
           });
         });
       });
     }
   }, {
-    key: "moveAllTheWayDown",
-    value: function moveAllTheWayDown() {
-      while (this.canMoveDown(this.currentBlockPositions)) {
-        this.moveDown(this.currentBlockPositions);
-      }
+    key: "getCurrentBlocks",
+    value: function getCurrentBlocks() {
+      var _this8 = this;
 
-      this.createBlock();
-    }
-  }, {
-    key: "popCurrentBlocks",
-    value: function popCurrentBlocks() {
-      var _this5 = this;
-
+      var pop = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
       return this.currentBlockPositions.map(function (pos) {
         var _pos = _slicedToArray(pos, 3),
             x = _pos[0],
             y = _pos[1],
             z = _pos[2];
 
-        var block = _this5.blocks[y][z][x];
-        _this5.blocks[y][z][x] = false;
+        var block = _this8.blocks[y][z][x];
+        if (pop) _this8.blocks[y][z][x] = false;
         return block;
       });
-    }
-  }, {
-    key: "moveCol",
-    value: function moveCol(n) {
-      var _this6 = this;
-
-      // console.log('Moving COL by ' + n)
-      if (!this.canMoveCol(n)) return;
-      var blocksToMove = this.popCurrentBlocks();
-      var nextBlockPositions = [];
-      this.currentBlockPositions.forEach(function (position, i) {
-        var _position2 = _slicedToArray(position, 3),
-            x = _position2[0],
-            y = _position2[1],
-            z = _position2[2];
-
-        _this6.blocks[y][z][x + n] = blocksToMove[i];
-        nextBlockPositions.push([x + n, y, z]);
-      });
-      this.currentBlockPositions = nextBlockPositions;
-    }
-  }, {
-    key: "moveRow",
-    value: function moveRow(n) {
-      var _this7 = this;
-
-      // console.log('Moving ROW by ' + n)
-      if (!this.canMoveRow(n)) return;
-      var blocksToMove = this.popCurrentBlocks();
-      var nextBlockPositions = [];
-      this.currentBlockPositions.forEach(function (position, i) {
-        var _position3 = _slicedToArray(position, 3),
-            x = _position3[0],
-            y = _position3[1],
-            z = _position3[2];
-
-        _this7.blocks[y][z + n][x] = blocksToMove[i];
-        nextBlockPositions.push([x, y, z + n]);
-      });
-      this.currentBlockPositions = nextBlockPositions;
-    }
-  }, {
-    key: "moveDown",
-    value: function moveDown() {
-      var _this8 = this;
-
-      if (!this.canMoveDown()) {
-        this.createBlock();
-        return;
-      }
-
-      var blocksToMove = this.popCurrentBlocks();
-      var nextBlockPositions = [];
-      this.currentBlockPositions.forEach(function (position, i) {
-        var _position4 = _slicedToArray(position, 3),
-            x = _position4[0],
-            y = _position4[1],
-            z = _position4[2];
-
-        _this8.blocks[y - 1][z][x] = blocksToMove[i];
-        nextBlockPositions.push([x, y - 1, z]);
-      });
-      this.currentBlockPositions = nextBlockPositions;
-    }
-  }, {
-    key: "canMove",
-    value: function canMove(n, xyzAs012, max) {
-      var _this9 = this;
-
-      var isPossible = true;
-      var outOfBounds = false;
-      var currentBlocks = this.currentBlockPositions.map(function (pos) {
-        var _pos2 = _slicedToArray(pos, 3),
-            x = _pos2[0],
-            y = _pos2[1],
-            z = _pos2[2];
-
-        return _this9.blocks[y][z][x];
-      });
-      this.currentBlockPositions.forEach(function (position) {
-        var nextPos = position.slice();
-        nextPos[xyzAs012] += n;
-        a = nextPos[xyzAs012];
-
-        var _nextPos = _slicedToArray(nextPos, 3),
-            x = _nextPos[0],
-            y = _nextPos[1],
-            z = _nextPos[2]; // Value says if there is a block at position [x, y, z] that is not part of the currently falling block
-
-
-        if (xyzAs012 != 1) console.log("try move", position, n);
-
-        if (x > 5 || x < 0 || y < 0 || z > 5 || z < 0) {
-          console.log("BLOCKED -- OUT OF BOUNDS");
-          outOfBounds = true;
-        } else if (_this9.blocks[y][z][x]) {
-          isPossible = false;
-          var blockingBlock = _this9.blocks[y][z][x];
-          currentBlocks.forEach(function (block) {
-            if (block == blockingBlock) {
-              isPossible = true;
-            }
-          });
-        }
-      });
-      return isPossible && !outOfBounds;
-    } // Magic constants: 0=x, 1=y, 2=z
-
-  }, {
-    key: "canMoveRow",
-    value: function canMoveRow(n) {
-      return this.canMove(n, 2, 5);
-    }
-  }, {
-    key: "canMoveCol",
-    value: function canMoveCol(n) {
-      return this.canMove(n, 0, 5);
-    }
-  }, {
-    key: "canMoveDown",
-    value: function canMoveDown() {
-      return this.canMove(-1, 1, 19);
     }
   }]);
 
