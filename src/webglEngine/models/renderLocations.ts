@@ -1,8 +1,8 @@
-class WebGLLocations {
+class WebGLRenderLocations {
     vertexPosition: number 
-    textureCoord: number 
+    textureCoordinates: number 
     textureSampler: number
-    vertexNorms: number
+    vertexNormals: number
 
     constructor({ 
       vertexPositionAttribLocation,
@@ -11,12 +11,12 @@ class WebGLLocations {
       normAttribLocation
     }) {
       this.vertexPosition = vertexPositionAttribLocation
-      this.textureCoord = textCoordAttribLocation
+      this.textureCoordinates = textCoordAttribLocation
       this.textureSampler = u_samplerUniformLocation
-      this.vertexNorms = normAttribLocation
+      this.vertexNormals = normAttribLocation
     }
 }
 
 export {
-  WebGLLocations
+  WebGLRenderLocations
 }

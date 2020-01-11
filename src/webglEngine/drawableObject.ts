@@ -1,29 +1,21 @@
 
-/*
-
-  Copyright Olafur Palsson
-  Email:   olafur.palsson2@gmail.com
-  GitHUb:  olafur-palsson
-  License: MIT
-
-*/
+import { Drawable } from '../drawables/drawable'
+import { WebGLRenderLocations } from './models/renderLocations'
+import { WebGLBuffers } from './models/buffers'
 
 // TODO: Needs interfacing, too coupled to webgl when it can be just a model and a then implement some render interface
-import { Drawable } from '../drawables/drawable'
-import { WebGLLocations } from './models/webglLocations'
-import { WebGLBuffers } from './models/webglBuffers'
 
 // Simple command to create buffers
 // 'object' contains the data for the buffers
 const N_BYTES = Float32Array.BYTES_PER_ELEMENT
 
-export default class GLObject implements Drawable {
+export default class DrawableObject implements Drawable {
   gl: any
-  locations: WebGLLocations
+  locations: WebGLRenderLocations
   buffers: WebGLBuffers
   texture: any
 
-  constructor (gl, locations: WebGLLocations, buffers: WebGLBuffers, texture: any) {
+  constructor (gl, locations: WebGLRenderLocations, buffers: WebGLBuffers, texture: any) {
     this.draw = this.draw.bind(this)
     this.locations = locations
     this.gl = gl
@@ -44,13 +36,13 @@ export default class GLObject implements Drawable {
 
     // Texture coordinates buffer
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.texture)
-    this.gl.vertexAttribPointer(this.locations.textureCoord, 2, this.gl.FLOAT, false, 0, 0)
-    this.gl.enableVertexAttribArray(this.locations.textureCoord)
+    this.gl.vertexAttribPointer(this.locations.textureCoordinates, 2, this.gl.FLOAT, false, 0, 0)
+    this.gl.enableVertexAttribArray(this.locations.textureCoordinates)
 
     // Vertex normals buffer
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.normals)
-    this.gl.vertexAttribPointer(this.locations.vertexNorms, 3, this.gl.FLOAT, false, 3 * N_BYTES, 0)
-    this.gl.enableVertexAttribArray(this.locations.vertexNorms)
+    this.gl.vertexAttribPointer(this.locations.vertexNormals, 3, this.gl.FLOAT, false, 3 * N_BYTES, 0)
+    this.gl.enableVertexAttribArray(this.locations.vertexNormals)
 
     // Set active texture and bind it
     this.gl.activeTexture(this.gl.TEXTURE0)
@@ -62,5 +54,5 @@ export default class GLObject implements Drawable {
 }
 
 export {
-  GLObject
+  DrawableObject as GLObject
 }

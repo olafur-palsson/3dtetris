@@ -1,3 +1,4 @@
+import UrlFileLoader from "../resourceLoaders/urlFileLoader"
 
 /*
 
@@ -8,82 +9,23 @@
 
 */
 const glMatrix = require('gl-matrix')
-
-const getFileFromURL = async url => {
-  return new Promise((resolve, reject) => {
-    var req = new XMLHttpRequest();
-    req.onload = () =>  {
-      resolve(req.responseText)
-    }
-    req.open("GET", url);
-    req.onerror = () => {
-      reject(url + " did not load bro")
-    }
-    req.send();
-  })
-}
-
 class WebGLProgram {
 
   shaderLoc: object
   gl: any
-  vertexShaderSource: string
-  fragmentShaderSource: string
+  program: any
+  attribLocations: AttributeLocations
+  uniformLocations: UniformLocations
   
-
-  constructor () {
-    this.setUniforms = this.setUniforms.bind(this)
-    this.shaderLoc = {}
-  }
-
   async init (webglContext, vertexShaderUrl, fragmentShaderUrl) {
     this.gl = webglContext
-    this.vertexShaderSource = await getFileFromURL(vertexShaderUrl)
-    this.fragmentShaderSource = await getFileFromURL(fragmentShaderUrl)
-    await this.initProgram()
+    const loader = new UrlFileLoader()
+    const vertexShaderSource = await loader.load(vertexShaderUrl)
+    const fragmentShaderSource = await loader.load(fragmentShaderUrl)
+    await this.createProgram(vertexShaderSource, fragmentShaderSource)
     this.gl.useProgram(this.program)
-  }
-
-  getAttribLocations(...arrayOfAttribNames) {
-    let attribs = {}
-    arrayOfAttribNames.forEach(
-      name => attribs[name] = this.gl.getAttribLocation(this.program, name)
-    )
-    return attribs
-  }
-
-  addUniformLocation(name, setter, thirdArg) {
-    const location = this.gl.getUniformLocation(this.program, name)
-    setter = setter.bind(this.gl)
-    let createSetter = () => {
-      if (typeof thirdArg != "undefined") {
-        return value => {
-          setter(location, thirdArg, value) 
-        }
-      }
-      else
-        return value => {
-          setter(location, value)
-        }
-    }
-
-    this.shaderLoc[name] = {
-      location,
-      setter: createSetter()
-    }
-  }
-
-  getUniformLocations () {
-    uniforms = {}
-    for (let key in this.shaderLoc) 
-      uniforms[key] = this.shaderLoc[key].location
-    return uniforms
-  }
-
-  setUniforms (objectOfVars) {
-    for (let key in objectOfVars) {
-      this.shaderLoc[key].setter(objectOfVars[key])
-    }
+    this.attribLocations = new AttributeLocations(this.gl, this.program)
+    this.uniformLocations = new UniformLocations(this.gl, this.program)
   }
 
   // This is how you get the compile errors of a shader displayed in console
@@ -100,32 +42,32 @@ class WebGLProgram {
     throw "ProgramLinkingError: \n" + gl.getProgramInfoLog(program)
   }
 
-  initProgram () {
+  createProgram (vertexShaderSource, fragmentShaderSource) {
 
     // Set the background or null color and clear
     this.gl.clearColor(0, 0, 0, 1)
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT)
 
     // Create shader
-    this.vertexShader = this.gl.createShader(this.gl.VERTEX_SHADER)
-    this.fragmentShader = this.gl.createShader(this.gl.FRAGMENT_SHADER)
+    const vertexShader = this.gl.createShader(this.gl.VERTEX_SHADER)
+    const fragmentShader = this.gl.createShader(this.gl.FRAGMENT_SHADER)
 
     // Set the source code for the shader
-    this.gl.shaderSource(this.vertexShader, this.vtxShaderText)
-    this.gl.shaderSource(this.fragmentShader, this.frgShaderText)
+    this.gl.shaderSource(vertexShader, vertexShaderSource)
+    this.gl.shaderSource(fragmentShader, fragmentShaderSource)
 
     // Compile
-    this.gl.compileShader(this.vertexShader)
-    this.gl.compileShader(this.fragmentShader)
+    this.gl.compileShader(vertexShader)
+    this.gl.compileShader(fragmentShader)
 
     // Get shader compile errors displayed in console
-    this.verifyShaderCompilation(this.gl, this.vertexShader)
-    this.verifyShaderCompilation(this.gl, this.fragmentShader)
+    this.verifyShaderCompilation(this.gl, vertexShader)
+    this.verifyShaderCompilation(this.gl, fragmentShader)
 
     // Create and link the program
     this.program = this.gl.createProgram()
-    this.gl.attachShader(this.program, this.vertexShader)
-    this.gl.attachShader(this.program, this.fragmentShader)
+    this.gl.attachShader(this.program, vertexShader)
+    this.gl.attachShader(this.program, fragmentShader)
     this.gl.linkProgram(this.program)
 
     // Get linking errors
@@ -133,6 +75,7 @@ class WebGLProgram {
     return this.program
   }
 
+  // TODO: This makes it a 3 stage initialization
   setupUniformMatrices (aspectRatio, positionOfViewer, pointViewerIsLookingAt, vectorPointingUp) {
     const mWorld = new Float32Array(16);
     const mView = new Float32Array(16);
@@ -142,7 +85,7 @@ class WebGLProgram {
       matWorldUniformLocation,
       matViewUniformLocation,
       matProjUniformLaction
-    } = this.getUniformLocations()
+    } = this.uniformLocations.getUniformLocations()
 
     glMatrix.mat4.identity(mWorld)
     glMatrix.mat4.lookAt(mView, positionOfViewer,  pointViewerIsLookingAt, vectorPointingUp)

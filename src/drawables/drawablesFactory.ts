@@ -1,7 +1,7 @@
 import { Drawable } from './drawable'
 
 interface DrawableFactory {
-  create(url): Drawable
+  create(objectUrl, textureUrl): Promise<Drawable>
 }
 
 export {

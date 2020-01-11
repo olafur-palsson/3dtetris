@@ -1,8 +1,9 @@
 import { DrawableFactory } from '../drawables/drawablesFactory'
-import { GLObject as WebGLObject } from './glObject'
-import { WebGLLocations } from './models/webglLocations'
-import { WebGLBuffers as WebGLBufferSet } from './models/webglBuffers'
-import { WebGLDataLoader } from './webglDataLoader'
+import { GLObject as WebGLObject } from './drawableObject'
+import { WebGLRenderLocations as RendurLocations } from './models/renderLocations'
+import { WebGLBuffers as BufferSet } from './models/buffers'
+import { WebGLDataLoader as DataLoader } from './dataLoader'
+import loadTexture from '../resourceLoaders/loadTexture'
 
 
 enum BufferType {
@@ -11,13 +12,13 @@ enum BufferType {
 }
 
  
-export default class WebGLObjectFactory implements DrawableFactory {
+export default class DrawableObjectFactory implements DrawableFactory {
 
   gl: any
-  locations: WebGLLocations
-  dataLoader: WebGLDataLoader
+  locations: RendurLocations
+  dataLoader: DataLoader
 
-  constructor(gl, locations: WebGLLocations, dataLoader: WebGLDataLoader) {
+  constructor(gl, locations: RendurLocations, dataLoader: DataLoader) {
     this.gl = gl
     this.locations = locations
     this.dataLoader = dataLoader
@@ -26,18 +27,12 @@ export default class WebGLObjectFactory implements DrawableFactory {
   async create(objectUrl: string, textureUrl: string) {
     const data = this.dataLoader.createMesh(objectUrl)
     const buffers = this.initializeBuffers(data)
-    const texture
-
-    object.mesh = await getObject(gl, objectUrl)
-    object.buffers = createBuffers(gl, object.mesh)
-    object.texture = loadTexture(gl, textureUrl)
-    object.gl = gl
-    object.numItems = object.mesh.indices.length
-    return new WebGLObject()
+    const texture = loadTexture(this.gl, textureUrl)
+    return new WebGLObject(this.gl, this.locations, buffers, texture)
   }
 
-  initializeBuffers(object): WebGLBufferSet {
-    return new WebGLBufferSet({
+  initializeBuffers(object): BufferSet {
+    return new BufferSet({
       textureBuffer: this.createFloatBuffer(object.textures),
       normalBuffer: this.createFloatBuffer(object.vertexNormals),
       vertexBuffer: this.createFloatBuffer(object.vertices),
