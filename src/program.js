@@ -10,7 +10,7 @@
 
 const glMatrix = require('gl-matrix')
 
-import { createWebGLProgram } from './easyWebGL'
+import { createWebGLProgram } from './webgl/easyWebGL'
 import { loadTexture } from './textures'
 import GLObject from './GLObject'
 import addDragRotation from './dragRotatePlugin'

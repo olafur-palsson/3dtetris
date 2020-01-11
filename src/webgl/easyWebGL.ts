@@ -7,7 +7,6 @@
   License: MIT
 
 */
-
 const glMatrix = require('gl-matrix')
 
 const getFileFromURL = async url => {
@@ -24,17 +23,23 @@ const getFileFromURL = async url => {
   })
 }
 
-class EasyWebGL {
+class WebGLProgram {
+
+  shaderLoc: object
+  gl: any
+  vertexShaderSource: string
+  fragmentShaderSource: string
+  
 
   constructor () {
     this.setUniforms = this.setUniforms.bind(this)
+    this.shaderLoc = {}
   }
 
   async init (webglContext, vertexShaderUrl, fragmentShaderUrl) {
     this.gl = webglContext
-    this.vtxShaderText = await getFileFromURL(vertexShaderUrl)
-    this.frgShaderText = await getFileFromURL(fragmentShaderUrl)
-    this.shaderLoc = {}
+    this.vertexShaderSource = await getFileFromURL(vertexShaderUrl)
+    this.fragmentShaderSource = await getFileFromURL(fragmentShaderUrl)
     await this.initProgram()
     this.gl.useProgram(this.program)
   }
@@ -152,7 +157,7 @@ class EasyWebGL {
 }
 
 let createWebGLProgram = async (webglContext, vertexShaderUrl, fragmentShaderUrl) => {
-  let obj = new EasyWebGL()
+  let obj = new WebGLProgram()
   await obj.init(webglContext, vertexShaderUrl, fragmentShaderUrl)
   return obj
 }

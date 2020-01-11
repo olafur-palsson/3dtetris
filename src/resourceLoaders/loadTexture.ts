@@ -1,6 +1,6 @@
 
 
-function loadTexture(gl, url) {
+export default function loadTexture(gl, url) {
   const texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
 
@@ -47,8 +47,4 @@ function loadTexture(gl, url) {
 
 function isPowerOf2(value) {
   return (value & (value - 1)) == 0;
-}
-
-export {
-  loadTexture
 }
